@@ -33,11 +33,13 @@ ES 5.x 之后，一致性策略由 `wait_for_active_shards` 参数控制：
 
 # ES 的写入原理
 ## 图解:
+
 ![es 写入](img/2.png)
 
 ## 概念和原理
 ### Segment
 lucene将一个大的逆向索引拆分成了多个小的段segment。每个segment本质上就是一个逆向索引。在lucene中，同时还会 **维护一个文件commit point，用来记录当前所有可用的segment** ，当我们在这个commit point上进行搜索时，就相当于在它下面的segment中进行搜索，每个segment返回自己的搜索结果，然后进行汇总返回给用户。
+
 ![3](img/3.png)
 
 - 1.新增的文档首先会被存放在内存的缓存中
@@ -61,13 +63,21 @@ ES的一个特性就是提供实时搜索，新增加的文档可以在很短的
 ### Translog
 对索引的修改操作在会 Lucene 执行 commit 之后真正持久化到磁盘，这个过程是非常消耗资源的，因此不可能在每次索引操作或删除操作后执行。Lucene 提交的成本太高，无法对每个单独的更改执行，因此每个分片副本还将操作写入其 事务日志，也就是 translog 。
 - 每当es接收一个文档时，在把文档放在buffer的同时，都会把文档记录在translog中。
+
 ![5](img/5.png)
+
 - 执行refresh操作时，会将缓存中的文档写入segment中，但是此时segment是放在缓存中的，并没有落入磁盘，此时新创建的segment是可以进行搜索的。
+
 ![6](img/6.png)
+
 - 按照如上的流程，新的segment继续被创建，同时这期间新增的文档会一直被写到translog中。
+
 ![7](img/7.png)
+
 - 当达到一定的时间间隔，或者translog足够大时，就会执行commit行为，将所有缓存中的segment写入磁盘。确保写入成功后，translog就会被清空。
+
 ![8](img/8.png)
+
 执行commit并清空translog的行为，在es中可以通过_flush api进行手动触发。
 ```sh
 curl -X POST ${ES_HOST}/${index}/_flush?v
